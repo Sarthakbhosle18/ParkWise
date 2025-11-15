@@ -264,6 +264,8 @@ export default function DriverDashboard() {
       }
     }
     
+    // Fetch parking data with new city coordinates
+    fetchAllParking(city.lat, city.lng, false);
     toast.success(`Showing parking in ${city.name}`);
   };
 
