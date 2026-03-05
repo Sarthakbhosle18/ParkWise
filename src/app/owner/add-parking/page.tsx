@@ -111,8 +111,12 @@ export default function AddParkingArea() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4">
-      <div className="container mx-auto max-w-2xl py-8">
+    <div className="min-h-screen bg-background p-4 relative overflow-hidden">
+      {/* Background ambient glow */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px]" />
+      </div>
+      <div className="container mx-auto max-w-2xl py-8 relative z-10">
         <Link href="/owner/dashboard">
           <Button variant="ghost" className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard

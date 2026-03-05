@@ -117,9 +117,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    if (startDate < now) {
+    // Allow bookings for anytime "today" by providing a 24-hour grace period
+    const gracePeriodNow = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    if (startDate < gracePeriodNow) {
       return NextResponse.json({
-        error: 'Start time must be in the future',
+        error: 'Start time must be today or in the future',
         code: 'VALIDATION_ERROR'
       }, { status: 400 });
     }

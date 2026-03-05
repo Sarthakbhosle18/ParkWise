@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Car, LogOut, MapPin, Navigation, Search, Filter, X, AlertCircle, Locate, Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Car, LogOut, MapPin, Search, Filter, X, Loader2, Locate } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -73,6 +73,7 @@ export default function DriverDashboard() {
   const [nearbyParking, setNearbyParking] = useState<ParkingArea[]>([]);
   const [filteredParking, setFilteredParking] = useState<ParkingArea[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isCanceling, setIsCanceling] = useState<number | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -80,18 +81,13 @@ export default function DriverDashboard() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [currentCity, setCurrentCity] = useState<string>("all");
   const [showAllCities, setShowAllCities] = useState(true);
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
-  const userMarkerRef = useRef<google.maps.Marker | null>(null);
-  const mapInitializedRef = useRef(false);
 
   // Search and filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState<"distance" | "price" | "availability">("distance");
   const [maxDistance, setMaxDistance] = useState<number>(500);
-  const [maxPrice, setMaxPrice] = useState<number>(200);
+  const [maxPrice, setMaxPrice] = useState<number>(500);
   const [availabilityFilter, setAvailabilityFilter] = useState<"all" | "available">("all");
   const [cityFilter, setCityFilter] = useState<string>("all");
 
@@ -109,22 +105,9 @@ export default function DriverDashboard() {
     }
   }, [user, authLoading, router]);
 
-  // Initialize map once data and location are ready
-  useEffect(() => {
-    if (user && userLocation && !mapInitializedRef.current && !mapError) {
-      initGoogleMaps();
-    }
-  }, [user, userLocation, mapError]);
-
   useEffect(() => {
     applyFiltersAndSort();
-  }, [nearbyParking, searchQuery, sortBy, maxDistance, maxPrice, availabilityFilter, cityFilter]);
-
-  useEffect(() => {
-    if (mapLoaded && mapInstanceRef.current && filteredParking.length > 0) {
-      updateMapMarkers(filteredParking);
-    }
-  }, [filteredParking, mapLoaded]);
+  }, [nearbyParking, searchQuery, sortBy, maxDistance, maxPrice, availabilityFilter, cityFilter, showAllCities]);
 
   const applyFiltersAndSort = () => {
     let filtered = [...nearbyParking];
@@ -143,7 +126,10 @@ export default function DriverDashboard() {
       filtered = filtered.filter((area) => area.city === cityFilter);
     }
 
-    filtered = filtered.filter((area) => area.distance <= maxDistance);
+    if (!showAllCities) {
+      filtered = filtered.filter((area) => area.distance <= maxDistance);
+    }
+
     filtered = filtered.filter((area) => area.hourlyRate <= maxPrice);
 
     if (availabilityFilter === "available") {
@@ -165,105 +151,21 @@ export default function DriverDashboard() {
 
     setFilteredParking(filtered);
   };
-
-  const updateMapMarkers = (areas: ParkingArea[]) => {
-    if (!mapInstanceRef.current || !window.google) {
-      return;
-    }
-
-    markersRef.current.forEach((marker) => marker.setMap(null));
-    markersRef.current = [];
-
-    areas.forEach((area) => {
-      const marker = new google.maps.Marker({
-        position: { lat: area.latitude, lng: area.longitude },
-        map: mapInstanceRef.current!,
-        title: area.name,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 10,
-          fillColor: area.availableSlots > 0 ? "#10b981" : "#ef4444",
-          fillOpacity: 1,
-          strokeColor: "#ffffff",
-          strokeWeight: 3,
-        },
-        animation: google.maps.Animation.DROP,
-      });
-
-      const infoWindow = new google.maps.InfoWindow({
-        content: `
-          <div style="padding: 12px; min-width: 220px; font-family: system-ui, -apple-system, sans-serif;">
-            <h3 style="font-weight: bold; margin-bottom: 8px; font-size: 16px; color: #1f2937;">${area.name}</h3>
-            <p style="font-size: 12px; color: #6b7280; margin-bottom: 4px;"><strong>City:</strong> ${area.city}</p>
-            <p style="font-size: 13px; color: #6b7280; margin-bottom: 8px;">${area.address}</p>
-            <div style="background: #f3f4f6; padding: 8px; border-radius: 6px; margin-bottom: 12px;">
-              <p style="font-size: 13px; margin: 4px 0; color: #374151;"><strong>Available:</strong> ${area.availableSlots}/${area.totalSlots} slots</p>
-              <p style="font-size: 13px; margin: 4px 0; color: #374151;"><strong>Price:</strong> ₹${area.hourlyRate}/hr • ₹${area.dailyRate}/day</p>
-              <p style="font-size: 13px; margin: 4px 0; color: #6b7280;"><strong>Distance:</strong> ${area.distance.toFixed(1)} km away</p>
-            </div>
-            <a 
-              href="/driver/parking/${area.id}" 
-              style="
-                display: block;
-                width: 100%;
-                padding: 8px 16px;
-                background-color: ${area.availableSlots > 0 ? '#2563eb' : '#9ca3af'};
-                color: white;
-                text-align: center;
-                text-decoration: none;
-                border-radius: 6px;
-                font-weight: 600;
-                font-size: 14px;
-                transition: background-color 0.2s;
-                ${area.availableSlots === 0 ? 'cursor: not-allowed; opacity: 0.6;' : 'cursor: pointer;'}
-              "
-              ${area.availableSlots === 0 ? 'onclick="return false;"' : ''}
-            >
-              ${area.availableSlots > 0 ? '🅿️ Book Slot' : 'No Slots Available'}
-            </a>
-          </div>
-        `,
-      });
-
-      marker.addListener("click", () => {
-        infoWindow.open(mapInstanceRef.current!, marker);
-      });
-
-      markersRef.current.push(marker);
-    });
-  };
-
   const clearFilters = () => {
     setSearchQuery("");
     setSortBy("distance");
     setMaxDistance(500);
-    setMaxPrice(200);
+    setMaxPrice(500);
     setAvailabilityFilter("all");
     setCityFilter("all");
   };
-
   const searchCity = (cityKey: keyof typeof CITY_PRESETS) => {
     const city = CITY_PRESETS[cityKey];
     setCurrentCity(cityKey);
     setCityFilter(city.name);
     setUserLocation(city);
     setShowAllCities(false);
-    
-    if (mapInstanceRef.current && mapLoaded) {
-      mapInstanceRef.current.setCenter(city);
-      mapInstanceRef.current.setZoom(13);
-      
-      if (userMarkerRef.current) {
-        userMarkerRef.current.setPosition(city);
-        userMarkerRef.current.setAnimation(google.maps.Animation.BOUNCE);
-        setTimeout(() => {
-          if (userMarkerRef.current) {
-            userMarkerRef.current.setAnimation(null);
-          }
-        }, 2000);
-      }
-    }
-    
+
     // Fetch parking data with new city coordinates
     fetchAllParking(city.lat, city.lng, false);
     toast.success(`Showing parking in ${city.name}`);
@@ -275,16 +177,7 @@ export default function DriverDashboard() {
     setShowAllCities(true);
     const kolhapurLocation = CITY_PRESETS.kolhapur;
     setUserLocation(kolhapurLocation);
-    
-    if (mapInstanceRef.current && mapLoaded) {
-      mapInstanceRef.current.setCenter(kolhapurLocation);
-      mapInstanceRef.current.setZoom(6);
-      
-      if (userMarkerRef.current) {
-        userMarkerRef.current.setPosition(kolhapurLocation);
-      }
-    }
-    
+
     toast.success("Showing all parking areas across all cities");
   };
 
@@ -301,22 +194,7 @@ export default function DriverDashboard() {
           setCurrentCity("current");
           setCityFilter("all");
           setShowAllCities(false);
-          
-          if (mapInstanceRef.current && mapLoaded) {
-            mapInstanceRef.current.setCenter(location);
-            mapInstanceRef.current.setZoom(13);
-            
-            if (userMarkerRef.current) {
-              userMarkerRef.current.setPosition(location);
-              userMarkerRef.current.setAnimation(google.maps.Animation.BOUNCE);
-              setTimeout(() => {
-                if (userMarkerRef.current) {
-                  userMarkerRef.current.setAnimation(null);
-                }
-              }, 2000);
-            }
-          }
-          
+
           fetchAllParking(location.lat, location.lng, false);
           toast.success("Using your current location");
         },
@@ -330,96 +208,21 @@ export default function DriverDashboard() {
     }
   };
 
-  const initGoogleMaps = () => {
-    if (mapInitializedRef.current) return;
-    
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    
-    if (!apiKey) {
-      setMapError("Map configuration missing");
-      return;
-    }
-
-    if (window.google?.maps) {
-      createMap();
-      return;
-    }
-
-    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-    if (existingScript) {
-      existingScript.addEventListener('load', createMap);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = createMap;
-    script.onerror = () => setMapError("Failed to load Google Maps");
-    document.head.appendChild(script);
-  };
-
-  const createMap = () => {
-    if (!mapRef.current || !window.google?.maps || !userLocation || mapInitializedRef.current) {
-      return;
-    }
-
-    try {
-      const map = new google.maps.Map(mapRef.current, {
-        center: userLocation,
-        zoom: showAllCities ? 6 : 13,
-        mapTypeControl: true,
-        streetViewControl: false,
-        fullscreenControl: true,
-        zoomControl: true,
-      });
-
-      mapInstanceRef.current = map;
-      mapInitializedRef.current = true;
-
-      userMarkerRef.current = new google.maps.Marker({
-        position: userLocation,
-        map: map,
-        title: "Your Location",
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 12,
-          fillColor: "#3B82F6",
-          fillOpacity: 1,
-          strokeColor: "#ffffff",
-          strokeWeight: 3,
-        },
-        zIndex: 1000,
-      });
-
-      setMapLoaded(true);
-      setMapError(null);
-
-      if (filteredParking.length > 0) {
-        setTimeout(() => updateMapMarkers(filteredParking), 100);
-      }
-    } catch (error) {
-      setMapError("Map initialization failed");
-      console.error("Map error:", error);
-    }
-  };
-
   const fetchAllParking = async (lat: number, lng: number, isInitial: boolean = true) => {
     if (isInitial) {
       setIsLoadingData(true);
     }
-    
+
     try {
       const response = await fetch(`/api/driver/nearby-parking?lat=${lat}&lng=${lng}&showAll=true`);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
       setNearbyParking(data);
-      
+
       if (data.length === 0) {
         toast.info("No parking areas found.");
       } else if (!isInitial) {
@@ -443,10 +246,46 @@ export default function DriverDashboard() {
       const response = await fetch(`/api/driver/bookings?driverId=${user?.id}`);
       if (response.ok) {
         const data = await response.json();
+        // Since we might have stale data locally when component remounts or re-fetches
         setBookings(data);
       }
     } catch (error) {
       console.error("Error fetching bookings:", error);
+    }
+  };
+
+  const cancelBooking = async (bookingId: number) => {
+    if (!user) return;
+
+    // Optional: confirm prompt
+    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+
+    setIsCanceling(bookingId);
+    try {
+      const response = await fetch(`/api/driver/bookings/${bookingId}?driverId=${user.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to cancel the booking');
+      }
+
+      toast.success('Booking cancelled successfully');
+
+      // Opt 1: Refresh list
+      fetchBookings();
+      // Opt 2: Optimistic UI updates
+      // setBookings(prev => prev.map(b => b.id === bookingId ? { ...b, bookingStatus: 'cancelled' } : b));
+
+      // Also fetch nearby parking to ensure slot statuses there are updated 
+      if (userLocation) {
+        fetchAllParking(userLocation.lat, userLocation.lng, false);
+      }
+    } catch (error) {
+      console.error("Error canceling booking:", error);
+      toast.error('Failed to cancel booking. Please try again.');
+    } finally {
+      setIsCanceling(null);
     }
   };
 
@@ -460,7 +299,7 @@ export default function DriverDashboard() {
   if (authLoading || isInitialLoad) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
@@ -473,21 +312,25 @@ export default function DriverDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="container mx-auto px-4 py-8">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* Background ambient glow */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px]" />
+      </div>
+      <div className="container mx-auto px-4 py-8 relative z-10">
         {/* Header */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="flex justify-between items-center mb-8"
         >
           <div className="flex items-center gap-3">
-            <motion.div 
+            <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
-              className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full"
+              className="bg-primary/20 border border-primary/30 p-3 rounded-xl shadow-[0_0_20px_rgba(0,255,148,0.2)]"
             >
-              <Car className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              <Car className="h-8 w-8 text-primary" />
             </motion.div>
             <div>
               <h1 className="text-3xl font-bold">Driver Dashboard</h1>
@@ -686,52 +529,17 @@ export default function DriverDashboard() {
             >
               <Card>
                 <CardHeader>
-                  <CardTitle>Parking Areas Map & List</CardTitle>
+                  <CardTitle>Available Parking</CardTitle>
                   <CardDescription>
-                    <MapPin className="inline h-4 w-4 mr-1" />
-                    {mapLoaded ? "Interactive map with parking locations" : mapError ? "Map unavailable - list view below" : "Loading map..."}
+                    <Car className="inline h-4 w-4 mr-1" />
+                    Browse and book nearby parking slots
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {/* Map Container */}
-                  <div className="relative w-full h-[500px] rounded-lg mb-6 border border-border overflow-hidden bg-muted">
-                    {!mapLoaded && !mapError && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-muted/90 z-10">
-                        <div className="text-center">
-                          <Loader2 className="h-12 w-12 text-primary mx-auto mb-2 animate-spin" />
-                          <p className="text-sm text-muted-foreground">Initializing map...</p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {mapError && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-muted/95 z-10">
-                        <div className="text-center p-6">
-                          <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                          <h3 className="font-semibold mb-2">Map Unavailable</h3>
-                          <p className="text-sm text-muted-foreground mb-3">{mapError}</p>
-                          <p className="text-xs text-muted-foreground mb-3">You can still view and book parking from the list below</p>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => {
-                              setMapError(null);
-                              mapInitializedRef.current = false;
-                              initGoogleMaps();
-                            }}
-                          >
-                            Try Again
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div ref={mapRef} className="w-full h-full"></div>
-                  </div>
 
                   {/* Parking List */}
                   {filteredParking.length === 0 ? (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       className="text-center py-12"
@@ -739,7 +547,7 @@ export default function DriverDashboard() {
                       <Search className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-xl font-semibold mb-2">No Parking Found</h3>
                       <p className="text-muted-foreground mb-4">
-                        {nearbyParking.length === 0 
+                        {nearbyParking.length === 0
                           ? "No parking areas available yet."
                           : "Try adjusting your search filters"}
                       </p>
@@ -750,15 +558,15 @@ export default function DriverDashboard() {
                       )}
                     </motion.div>
                   ) : (
-                    <motion.div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <AnimatePresence>
                         {filteredParking.map((area, index) => (
                           <motion.div
                             key={area.id}
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            transition={{ delay: index * 0.05 }}
+                            exit={{ opacity: 0, y: -10 }}
+                            transition={{ duration: 0.2 }}
                             whileHover={{ y: -5, transition: { duration: 0.2 } }}
                           >
                             <Card className="hover:shadow-lg transition-shadow h-full">
@@ -766,9 +574,9 @@ export default function DriverDashboard() {
                                 <div className="flex justify-between items-start mb-2">
                                   <CardTitle className="text-lg">{area.name}</CardTitle>
                                   <motion.div
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    transition={{ delay: index * 0.05 + 0.2 }}
+                                    initial={{ scale: 0.8, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    transition={{ duration: 0.2 }}
                                   >
                                     {area.availableSlots > 0 ? (
                                       <Badge variant="default" className="bg-green-500">Available</Badge>
@@ -799,19 +607,28 @@ export default function DriverDashboard() {
                                   <span className="text-muted-foreground">Pricing</span>
                                   <span className="font-semibold">₹{area.hourlyRate}/hr</span>
                                 </div>
-                                <Link href={`/driver/parking/${area.id}`}>
-                                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                                    <Button className="w-full" disabled={area.availableSlots === 0}>
-                                      {area.availableSlots > 0 ? "Book Slot" : "No Slots Available"}
-                                    </Button>
-                                  </motion.div>
-                                </Link>
+                                <div className="flex gap-2">
+                                  <Link href={`https://www.google.com/maps/dir/?api=1&destination=${area.latitude},${area.longitude}`} target="_blank" className="flex-1">
+                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                                      <Button variant="outline" className="w-full">
+                                        <MapPin className="h-3 w-3 mr-1" /> Nav
+                                      </Button>
+                                    </motion.div>
+                                  </Link>
+                                  <Link href={`/driver/parking/${area.id}`} className="flex-[2]">
+                                    <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                                      <Button className="w-full" disabled={area.availableSlots === 0}>
+                                        {area.availableSlots > 0 ? "Book" : "Full"}
+                                      </Button>
+                                    </motion.div>
+                                  </Link>
+                                </div>
                               </CardContent>
                             </Card>
                           </motion.div>
                         ))}
                       </AnimatePresence>
-                    </motion.div>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -831,7 +648,7 @@ export default function DriverDashboard() {
                 </CardHeader>
                 <CardContent>
                   {bookings.length === 0 ? (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       className="text-center py-12"
@@ -857,9 +674,25 @@ export default function DriverDashboard() {
                                     <h4 className="font-semibold">{booking.parkingArea.name}</h4>
                                     <p className="text-sm text-muted-foreground">{booking.parkingArea.address}</p>
                                   </div>
-                                  <Badge variant={booking.bookingStatus === "active" ? "default" : "secondary"}>
-                                    {booking.bookingStatus}
-                                  </Badge>
+                                  <div className="flex flex-col items-end gap-2">
+                                    <Badge variant={booking.bookingStatus === "active" ? "default" : "secondary"}>
+                                      {booking.bookingStatus}
+                                    </Badge>
+                                    {booking.bookingStatus === "active" && (
+                                      <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => cancelBooking(booking.id)}
+                                        disabled={isCanceling === booking.id}
+                                      >
+                                        {isCanceling === booking.id ? (
+                                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Canceling</>
+                                        ) : (
+                                          "Cancel Booking"
+                                        )}
+                                      </Button>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                                   <div>

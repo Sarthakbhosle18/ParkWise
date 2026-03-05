@@ -40,7 +40,7 @@ export default function BookingPage() {
   const [totalAmount, setTotalAmount] = useState(0);
   const [duration, setDuration] = useState(1);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
-  
+
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<BookingFormData>({
     defaultValues: {
       paymentMethod: "cash",
@@ -194,7 +194,7 @@ export default function BookingPage() {
             // Clear booking data
             localStorage.removeItem("bookingData");
             toast.success("Payment successful! Booking confirmed.");
-            
+
             // Redirect to receipt page
             router.push(`/driver/receipt/${bookingResult.booking.id}`);
           } catch (error: any) {
@@ -210,7 +210,7 @@ export default function BookingPage() {
           color: "#3B82F6",
         },
         modal: {
-          ondismiss: function() {
+          ondismiss: function () {
             setIsLoading(false);
             toast.error("Payment cancelled");
           }
@@ -246,11 +246,11 @@ export default function BookingPage() {
       } else {
         // Handle cash payment
         const bookingResult = await createBooking(null, "cash");
-        
+
         // Clear booking data
         localStorage.removeItem("bookingData");
         toast.success("Booking confirmed! Pay cash when you arrive.");
-        
+
         // Redirect to receipt page
         router.push(`/driver/receipt/${bookingResult.booking.id}`);
       }
@@ -271,7 +271,11 @@ export default function BookingPage() {
     );
   }
 
-  const minDateTime = new Date().toISOString().slice(0, 16);
+  // Set minDateTime to the start of today in local time to allow booking for earlier in the day
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const minDateTime = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}T00:00`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -295,7 +299,7 @@ export default function BookingPage() {
                   {/* Vehicle Details */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Vehicle Details</h3>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="vehicleType">Vehicle Type *</Label>
                       <Select onValueChange={(value) => setValue("vehicleType", value)}>
@@ -327,7 +331,7 @@ export default function BookingPage() {
                   {/* Parking Duration */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Parking Duration</h3>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="startTime">Start Time *</Label>
                       <Input
@@ -364,7 +368,7 @@ export default function BookingPage() {
                   {/* Payment Method */}
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Payment Method</h3>
-                    
+
                     <RadioGroup
                       defaultValue="cash"
                       onValueChange={(value) => setValue("paymentMethod", value)}

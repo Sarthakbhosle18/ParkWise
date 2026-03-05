@@ -27,6 +27,8 @@ interface ParkingArea {
   id: number;
   name: string;
   address: string;
+  latitude: number;
+  longitude: number;
   hourlyRate: number;
   dailyRate: number;
   totalFloors: number;
@@ -156,11 +158,24 @@ export default function ParkingDetail() {
           <div className="lg:col-span-1">
             <Card className="sticky top-4">
               <CardHeader>
-                <CardTitle>{parkingArea.name}</CardTitle>
-                <CardDescription>
-                  <MapPin className="inline h-4 w-4 mr-1" />
-                  {parkingArea.address}
-                </CardDescription>
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <CardTitle>{parkingArea.name}</CardTitle>
+                    <CardDescription>
+                      <MapPin className="inline h-4 w-4 mr-1" />
+                      {parkingArea.address}
+                    </CardDescription>
+                  </div>
+                  {parkingArea.latitude && parkingArea.longitude && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${parkingArea.latitude},${parkingArea.longitude}`, "_blank")}
+                    >
+                      <MapPin className="mr-2 h-4 w-4 shrink-0" /> Navigate
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
@@ -207,13 +222,15 @@ export default function ParkingDetail() {
                   </div>
                 </div>
 
-                <Button 
-                  className="w-full" 
+                <Button
+                  className="w-full"
                   onClick={handleBooking}
                   disabled={!selectedSlot}
                 >
                   Proceed to Booking
                 </Button>
+
+
               </CardContent>
             </Card>
           </div>
@@ -234,7 +251,7 @@ export default function ParkingDetail() {
                   <div className="space-y-6">
                     {parkingArea.floors.map((floor) => {
                       const availableCount = floor.slots.filter(s => s.status === "available").length;
-                      
+
                       return (
                         <div key={floor.id} className="border rounded-lg p-4">
                           <div className="flex justify-between items-center mb-4">
@@ -243,7 +260,7 @@ export default function ParkingDetail() {
                               {availableCount}/{floor.totalSlots} Available
                             </Badge>
                           </div>
-                          
+
                           <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-10 gap-2">
                             {floor.slots.map((slot) => (
                               <button

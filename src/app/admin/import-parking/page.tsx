@@ -68,8 +68,12 @@ export default function ImportParkingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="min-h-screen bg-background relative overflow-hidden">
+      {/* Background ambient glow */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-primary/5 rounded-full blur-[120px]" />
+      </div>
+      <div className="container mx-auto px-4 py-8 max-w-6xl relative z-10">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -79,9 +83,9 @@ export default function ImportParkingPage() {
             <Button variant="ghost" className="mb-4">← Back to Home</Button>
           </Link>
           <div className="flex items-center gap-3 mb-2">
-            <motion.div 
+            <motion.div
               whileHover={{ scale: 1.1, rotate: 5 }}
-              className="bg-primary/10 p-3 rounded-full"
+              className="bg-primary/20 border border-primary/30 p-3 rounded-xl shadow-[0_0_20px_rgba(0,255,148,0.2)]"
             >
               <MapPin className="h-8 w-8 text-primary" />
             </motion.div>
@@ -227,7 +231,7 @@ export default function ImportParkingPage() {
                 </CardHeader>
                 <CardContent>
                   {importedData.imported.length === 0 ? (
-                    <motion.div 
+                    <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       className="text-center py-8"
