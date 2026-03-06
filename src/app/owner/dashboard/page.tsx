@@ -319,16 +319,16 @@ export default function OwnerDashboard() {
                                       ) : (
                                         <ResponsiveContainer width="100%" height="100%">
                                           <LineChart data={insights.revenueData}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--muted))" />
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
                                             <XAxis
                                               dataKey="date"
-                                              stroke="hsl(var(--muted-foreground))"
+                                              stroke="var(--muted-foreground)"
                                               fontSize={12}
                                               tickLine={false}
                                               axisLine={false}
                                             />
                                             <YAxis
-                                              stroke="hsl(var(--muted-foreground))"
+                                              stroke="var(--muted-foreground)"
                                               fontSize={12}
                                               tickLine={false}
                                               axisLine={false}
@@ -336,19 +336,21 @@ export default function OwnerDashboard() {
                                             />
                                             <Tooltip
                                               contentStyle={{
-                                                backgroundColor: 'hsl(var(--popover))',
-                                                border: '1px solid hsl(var(--border))',
-                                                borderRadius: '8px'
+                                                backgroundColor: 'var(--popover)',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: '8px',
+                                                color: 'var(--popover-foreground)'
                                               }}
+                                              itemStyle={{ color: 'var(--primary)' }}
                                               formatter={(value) => [`₹${value}`, 'Revenue']}
                                             />
                                             <Line
                                               type="monotone"
                                               dataKey="revenue"
-                                              stroke="hsl(var(--primary))"
+                                              stroke="var(--primary)"
                                               strokeWidth={3}
-                                              dot={{ r: 4, strokeWidth: 2 }}
-                                              activeDot={{ r: 6, strokeWidth: 0 }}
+                                              dot={{ r: 4, strokeWidth: 2, fill: 'var(--background)' }}
+                                              activeDot={{ r: 6, strokeWidth: 0, fill: 'var(--primary)' }}
                                             />
                                           </LineChart>
                                         </ResponsiveContainer>
